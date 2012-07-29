@@ -53,7 +53,7 @@ public class LocalStreamPlayer implements OnPreparedListener {
           sLocalStreamingServer.setFileToStream(trackFile);
           
         try {
-            sMediaPlayer.setDataSource("http://127.0.0.1:" + LocalStreamingServer.PORT + "/?track=" + track);
+            sMediaPlayer.setDataSource("http://localhost:" + LocalStreamingServer.PORT + "/?track=" + track);
         } catch (IllegalArgumentException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
