@@ -9,33 +9,26 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketAddress;
-
-import org.apache.http.impl.DefaultConnectionReuseStrategy;
-import org.apache.http.impl.DefaultHttpResponseFactory;
-import org.apache.http.impl.DefaultHttpServerConnection;
-import org.apache.http.protocol.BasicHttpProcessor;
-import org.apache.http.protocol.HttpService;
-import org.apache.http.protocol.ResponseConnControl;
-import org.apache.http.protocol.ResponseContent;
-import org.apache.http.protocol.ResponseServer;
 
 import android.os.Handler;
-import android.util.Log;
 
 public class LocalStreamingServer extends Thread {
-
+    
+    /**
+     * Handler class for handling requests coming in through the serversoket
+     * 
+     * @param socket
+     */
   private class SocketHandler implements Runnable {
 
     private final Socket mSocket;
-    private DefaultHttpServerConnection mHttpConnection;
-    private File mFile;
+    //private DefaultHttpServerConnection mHttpConnection;
 
     public SocketHandler(Socket socket) {
 
       super();
-      this.mSocket = socket;
-
+      mSocket = socket;
+      
       /*
        * // Set up a HTTP protocol processor BasicHttpProcessor httpProcessor = new BasicHttpProcessor(); httpProcessor.addInterceptor(new ResponseServer()); httpProcessor.addInterceptor(new ResponseContent());
        * httpProcessor.addInterceptor(new ResponseConnControl());
@@ -50,11 +43,7 @@ public class LocalStreamingServer extends Thread {
 
     }
 
-    public void setFileToStream(File file) {
-
-      mFile = file;
-
-    }
+    
 
     @Override
     public void run() {
@@ -71,10 +60,10 @@ public class LocalStreamingServer extends Thread {
         
       }
 
-      BufferedInputStream inputStream = null;
+      BufferedInputStream bis = null;
       try {
 
-        inputStream = new BufferedInputStream(new FileInputStream(mFile));
+          bis = new BufferedInputStream(new FileInputStream(mFile));
 
       } catch (FileNotFoundException fnfe) {
         
@@ -87,7 +76,7 @@ public class LocalStreamingServer extends Thread {
 
       try {
 
-        while ((n = inputStream.read(dataBuffer)) != -1) {
+        while ((n = bis.read(dataBuffer)) != -1) {
           
           dos.write(dataBuffer, 0, n);
           
@@ -98,19 +87,33 @@ public class LocalStreamingServer extends Thread {
         ioe.printStackTrace();
         
       }
+      
+      try {
+          bis.close();
+      } catch (IOException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+      }
+
     }
 
   }
 
+  public static final int PORT = 8080;
+  
   private Handler mHandler;
 
   private ServerSocket mServerSocket;
 
   private boolean isRunning;
 
+  private File mFile;
+
   public LocalStreamingServer() {
 
     mHandler = new Handler();
+
+    start();
 
   }
 
@@ -118,11 +121,22 @@ public class LocalStreamingServer extends Thread {
     return isRunning;
   }
 
+  public void setFileToStream(File file) {
+
+      mFile = file;
+
+    }
+  
   @Override
   public void destroy() {
-    super.destroy();
 
-    closeSocket();
+      super.destroy();
+
+      if (isRunning){
+          this.interrupt();
+      }
+      
+      closeSocket();
 
   }
 
@@ -131,8 +145,8 @@ public class LocalStreamingServer extends Thread {
    */
   private void closeSocket() {
 
-    if (mServerSocket != null && !mServerSocket.isClosed()) {
-
+    if (mServerSocket != null) {
+        
       try {
         mServerSocket.close();
       } catch (IOException e) {
@@ -147,15 +161,17 @@ public class LocalStreamingServer extends Thread {
   }
 
   @Override
-  public void run() {
+  public synchronized void run() {
 
-    closeSocket();
+      // close any existing socket
+      closeSocket();
 
+    // Create new server socket
     try {
 
       mServerSocket = new ServerSocket();
 
-      InetSocketAddress address = new InetSocketAddress(8080);
+      InetSocketAddress address = new InetSocketAddress(PORT);
       mServerSocket.bind(address);
 
     } catch (IOException e) {
@@ -165,11 +181,18 @@ public class LocalStreamingServer extends Thread {
 
     }
 
+    // wait for incoming requests
     while (!Thread.interrupted() && !mServerSocket.isClosed()) {
 
+        
+      isRunning = true;
+        
       try {
 
+          // Block until a request comes in
         final Socket newSocket = mServerSocket.accept();
+        
+        // handle request
         mHandler.post(new SocketHandler(newSocket));
 
       } catch (IOException e) {
@@ -178,13 +201,19 @@ public class LocalStreamingServer extends Thread {
       }
 
     }
+    
+    isRunning = false;
 
   }
 
   @Override
   public synchronized void start() {
     // TODO Auto-generated method stub
-    super.start();
+    try{
+        super.start();
+    } catch (IllegalThreadStateException itse){
+        itse.printStackTrace();
+    }
   }
 
 }
